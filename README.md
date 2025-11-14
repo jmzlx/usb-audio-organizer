@@ -1,17 +1,17 @@
 # Shokz Sync
 
-A CLI tool to clean, compress, and sort music on **Shokz XTRAINERZ** (formerly AfterShokz) swim MP3 players using beets, ffmpeg, and fatsort.
+A bash script toolkit to clean, organize, and sync music to **Shokz XTRAINERZ** (formerly AfterShokz) swim MP3 players using beets, ffmpeg, and fatsort.
 
 ## Overview
 
 The Shokz XTRAINERZ is a bone conduction MP3 player with 4GB of FAT32 storage. Because it uses the FAT32 file index order for playback, manually copying music folders can result in unpredictable track order. This tool automates the entire workflow:
 
 1. **Organize**: Use beets to normalize folder structure and filenames
-2. **Compress**: Transcode high-bitrate files to AAC for space efficiency
+2. **Compress**: Transcode to 96 kbps AAC for space efficiency
 3. **Sort**: Run fatsort to ensure predictable playback order
 
-After running `shokz-sync`, your music library will have:
-- Clean structure: `Artist - Album/NN - Title.ext`
+After running the workflow, your music library will have:
+- Clean structure: `Artist - Album/NN - Title.m4a`
 - Consistent bitrate (default 96 kbps AAC)
 - Predictable track order
 
@@ -19,8 +19,6 @@ After running `shokz-sync`, your music library will have:
 
 - **macOS** (uses `diskutil` for device detection)
 - **Homebrew** (for installing dependencies)
-- **Python 3.8+**
-- **uv** (recommended package manager - 10x faster than pip)
 
 ## Installation
 
@@ -30,200 +28,189 @@ After running `shokz-sync`, your music library will have:
 brew install beets ffmpeg fatsort
 ```
 
-### 2. Install uv (recommended)
-
-[uv](https://github.com/astral-sh/uv) is a blazingly fast Python package manager written in Rust (10-100x faster than pip):
+### 2. Download the scripts
 
 ```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
+# Make scripts executable
+chmod +x beets-encode.sh sync-device.sh
 ```
 
-Or via Homebrew:
+### 3. Optional: Install system-wide
 
 ```bash
-brew install uv
-```
-
-**Why uv?**
-- ⚡ 10-100x faster than pip
-- 🔒 Better dependency resolution
-- 🛠️ Drop-in pip replacement
-- 📦 Built-in tool isolation
-
-If you prefer traditional pip, it will work too (just slower):
-```bash
-pip install -e .
-```
-
-### 3. Install shokz-sync
-
-Clone this repository and install:
-
-```bash
-cd usb-audio-organizer
-uv pip install -e .
-```
-
-Or use uv's tool installation:
-
-```bash
-uv tool install .
-```
-
-### 4. Verify installation
-
-```bash
-shokz-sync --version
+sudo cp beets-encode.sh /usr/local/bin/beets-encode
+sudo cp sync-device.sh /usr/local/bin/sync-device
 ```
 
 ## Quick Start
 
-1. **Connect your Shokz XTRAINERZ** - it should mount at `/Volumes/XTRAINERZ`
-
-2. **Run the sync**:
+1. **Copy your music** to the source directory:
 
 ```bash
-shokz-sync
+# Copy music to the project's source directory
+cp -r ~/Music/* ./source/
 ```
 
-That's it! The tool will:
-- Check dependencies
-- Create a beets config if needed
-- Organize your music library
-- Unmount the device
+2. **Encode your music**:
+
+```bash
+./beets-encode.sh
+```
+
+This will:
+- Import and organize your music with beets
+- Transcode to 96 kbps AAC → `./encoded/`
+
+3. **Sync to device**:
+
+```bash
+# Connect your Shokz XTRAINERZ (mounts at /Volumes/XTRAINERZ)
+./sync-device.sh /Volumes/XTRAINERZ
+```
+
+This will:
+- Copy encoded files to device
 - Run fatsort to optimize playback order
-- Remount the device
 
 ## Usage
 
-### Basic sync
+### Two-Stage Workflow
+
+The workflow is split into two stages for flexibility:
+
+**Stage 1: Encode** (`beets-encode.sh`)
+- Organizes and encodes music files
+- Outputs to `./encoded/` directory
+
+**Stage 2: Sync** (`sync-device.sh`)
+- Copies encoded files to device
+- Runs fatsort for correct playback order
+
+### Basic workflow
 
 ```bash
-shokz-sync
+# Step 1: Encode music
+./beets-encode.sh
+
+# Step 2: Sync to device
+./sync-device.sh /Volumes/XTRAINERZ
+```
+
+### Copy from device first, then process
+
+```bash
+# Copy from device, then encode
+./beets-encode.sh --from-device
+
+# Sync back to device
+./sync-device.sh /Volumes/XTRAINERZ
+```
+
+### Use custom source directory
+
+```bash
+./beets-encode.sh --source ~/Music
 ```
 
 ### Preview changes (dry run)
 
 ```bash
-shokz-sync --dry-run
+# Preview encoding
+./beets-encode.sh --dry-run
+
+# Preview sync
+./sync-device.sh /Volumes/XTRAINERZ --dry-run
 ```
 
-### Custom mountpoint
+### Custom device mountpoint
 
 ```bash
-shokz-sync --mountpoint /Volumes/MY_DEVICE
+./sync-device.sh /Volumes/MY_DEVICE
 ```
 
 ### Custom bitrate
 
 ```bash
-shokz-sync --bitrate 128k
+./beets-encode.sh --bitrate 128k
 ```
 
-### Initialize configuration
-
-Create a beets config file at `~/.config/beets/config.yaml`:
+### Verbose output
 
 ```bash
-shokz-sync init-config
-```
-
-### View config template
-
-```bash
-shokz-sync show-config
+./beets-encode.sh --verbose
+./sync-device.sh /Volumes/XTRAINERZ --verbose
 ```
 
 ## Command Reference
 
+### beets-encode.sh
+
 ```
-shokz-sync [command] [options]
+Usage: beets-encode.sh [OPTIONS]
 
-Commands:
-  sync              Sync and organize music (default)
-  init-config       Create default beets configuration
-  show-config       Display config template
+Clean and encode music files using beets.
 
-Options for sync:
-  --mountpoint PATH    Mount point of device (default: /Volumes/XTRAINERZ)
-  --bitrate RATE       Target AAC bitrate (default: 96k)
-  --no-convert         Skip transcoding, only reorganize
-  --dry-run            Preview changes without modifying files
-  --verbose, -v        Verbose output
+OPTIONS:
+  --source DIR        Source directory (default: ./source)
+  --bitrate RATE      AAC bitrate (default: 96k)
+  --from-device       Copy music from device to source first
+  --device PATH       Device mount point when using --from-device (default: /Volumes/XTRAINERZ)
+  --dry-run           Show what would be done without making changes
+  --verbose, -v       Verbose output
+  --help, -h          Show this help message
+```
+
+### sync-device.sh
+
+```
+Usage: sync-device.sh DEVICE_MOUNT [OPTIONS]
+
+Copy encoded files to device and run fatsort.
+
+DEVICE_MOUNT is required (e.g., /Volumes/XTRAINERZ)
+
+OPTIONS:
+  --no-clear          Don't clear device before copying
+  --dry-run           Show what would be done without making changes
+  --verbose, -v       Verbose output
+  --help, -h          Show this help message
 ```
 
 ## How It Works
 
-### Nested Folder Support
+### Staging Workflow
 
-**shokz-sync fully supports nested folder structures of any depth.** Whether you have:
-- Flat folders at the root
-- Artist/Album nesting
-- Genre/Artist/Album hierarchies  
-- Multi-disc albums with subfolders
-- Messy mixed structures from manual copying
+The tool uses a project-based workflow for safe, fast processing:
 
-The tool recursively scans all subdirectories and organizes everything into a clean, consistent structure.
-
-#### Examples of Supported Structures
-
-**Flat structure:**
 ```
-/Volumes/XTRAINERZ/
-├── song1.mp3
-├── song2.mp3
-└── song3.m4a
+usb-audio-organizer/
+├── source/    # Raw input files (your original music)
+├── encoded/   # Transcoded 96kbps AAC (ready for device)
+└── shokz_music.db  # Beets database (created automatically)
 ```
 
-**Artist/Album nesting:**
-```
-/Volumes/XTRAINERZ/
-├── Blur/
-│   └── Think Tank/
-│       ├── 01.mp3
-│       └── 02.mp3
-└── Radiohead/
-    └── OK Computer/
-        ├── 01.mp3
-        └── 02.mp3
-```
+**Why staging?**
+- All processing happens on fast local disk (not slow USB)
+- Safe: device only touched at the end
+- Can preview results before copying
+- Easy recovery if something goes wrong
+- Project-based: all files stay in the project directory
 
-**Multi-disc albums:**
-```
-/Volumes/XTRAINERZ/
-└── Artist - Greatest Hits/
-    ├── Disc 1/
-    │   ├── 01.mp3
-    │   └── 02.mp3
-    └── Disc 2/
-        ├── 01.mp3
-        └── 02.mp3
-```
+### Workflow Steps
 
-**Very deep nesting (any depth works):**
-```
-/Volumes/XTRAINERZ/
-└── Downloads/
-    └── Music/
-        └── 2003/
-            └── Rock/
-                └── Blur/
-                    └── Think Tank/
-                        ├── 01.mp3
-                        └── 02.mp3
-```
+**Stage 1: Encoding** (`beets-encode.sh`)
+1. **Dependency Check** - Verify beets, ffmpeg, and related tools
+2. **Create Directories** - Set up `source/` and `encoded/` folders if needed
+3. **Import Music** - `beet import source/` → organizes and tags music
+4. **Convert** - `beet convert` → transcode to 96k AAC → `encoded/`
 
-All files are found regardless of nesting depth!
+**Stage 2: Syncing** (`sync-device.sh`)
+5. **Verify Encoded Files** - Check that `encoded/` contains files
+6. **Detect Device** - Find device node via `diskutil`
+7. **Copy to Device** - `rsync encoded/` → `/Volumes/XTRAINERZ/`
+8. **FAT Sort** - Unmount, sort directory entries, remount
 
-### 1. Dependency Check
-
-The tool verifies that all required commands are available:
-- `beet` (beets music tagger)
-- `ffmpeg` & `ffprobe` (audio transcoding)
-- `fatsort` (FAT filesystem sorter)
-- `diskutil` (macOS disk utility)
-
-### 2. Beets Organization
+### Beets Organization
 
 Beets reorganizes your music according to these path templates:
 
@@ -236,236 +223,81 @@ paths:
 
 **Example transformation:**
 
-Before (nested and messy):
+Before (messy):
 ```
-/Volumes/XTRAINERZ/
+source/
   Downloads/
-    Music/
-      Blur - (2003) Think Tank {iMog}/
-        01 - Ambulance.mp3
-        02 - Out of Time.mp3
-  [PMEDIA] ⭐/
-    Some Folder/
-      track1.m4a
+    Blur - (2003) Think Tank {iMog}/
+      01 - Ambulance.mp3
+      02 - Out of Time.mp3
 ```
 
-After (clean and organized):
+After (organized and encoded):
 ```
-/Volumes/XTRAINERZ/
+encoded/
   Blur - Think Tank/
-    01 - Ambulance.m4a
+    01 - Ambulance.m4a  (96 kbps AAC)
     02 - Out of Time.m4a
-  Artist Name - Album Name/
-    01 - Track Name.m4a
 ```
 
-**Note:** All files are found regardless of nesting depth!
+### Transcoding
 
-### 3. Transcoding
+Files are transcoded to AAC using these settings:
+- Target: 96 kbps AAC (.m4a)
+- Only files above 128 kbps are converted
+- Preserves metadata
+- Removes embedded album art (video stream) to prevent ffmpeg issues
+- Optimized for space: 96 kbps provides good quality for spoken word and music
 
-Files above 128 kbps are automatically transcoded to AAC:
-- Default target: 96 kbps AAC (.m4a)
-- Preserves metadata and album art
-- Skips files already at low bitrate
-
-### 4. FAT Sorting
+### FAT Sorting
 
 The tool:
 1. Detects the device node (e.g., `/dev/disk4s1`)
 2. Unmounts the volume
-3. Runs `fatsort -o a` on the raw device (`/dev/rdisk4s1`)
+3. Runs `sudo fatsort -o a` on the raw device (`/dev/rdisk4s1`)
 4. Remounts the volume
 
 This ensures the FAT32 directory entries are sorted alphabetically, which the XTRAINERZ uses for playback order.
 
 ## Configuration
 
-### Beets Config Location
+### Beets Config
 
-Default: `~/.config/beets/config.yaml`
+The script uses a static beets configuration file at `config.yaml` in the project root. The config includes:
 
-The tool will automatically create a config optimized for the XTRAINERZ if one doesn't exist.
+- **Metadata cleaning**: Scrub plugin removes unwanted tags
+- **Auto-conversion**: Transcode during import
+- **System file filtering**: Ignores `.Spotlight-V100`, `.Trashes`, etc.
+- **Non-interactive**: Runs without prompts
 
-### Customizing the Config
+To customize, edit `config.yaml` directly. See the [beets documentation](https://beets.readthedocs.io/) for all options.
 
-Edit `~/.config/beets/config.yaml` to customize:
+### Project Directory Structure
 
-- **Path templates**: Change how folders/files are named
-- **Plugins**: Enable features like `fetchart`, `embedart`, `lastgenre`
-- **Transcoding**: Adjust bitrate, format, or quality settings
+By default, all files are stored in the project directory:
 
-See the [beets documentation](https://beets.readthedocs.io/) for full config options.
-
-#### Advanced Customization Examples
-
-**Genre-based organization:**
-```yaml
-paths:
-  default: $genre/$albumartist - $album/$track - $title
-  comp: Compilations/$album/$track - $title
-
-plugins:
-  - scrub
-  - convert
-  - lastgenre  # Auto-fetch genres
-
-lastgenre:
-  auto: yes
+```
+usb-audio-organizer/
+├── source/          # Copy your raw music here
+├── encoded/         # Converted AAC files ready for device
+├── config.yaml      # Beets configuration
+├── shokz_music.db   # Beets database (auto-created)
+├── beets-encode.sh  # Encoding script
+└── sync-device.sh   # Device sync script
 ```
 
-**Classical music by composer:**
-```yaml
-paths:
-  default: $albumartist - $album/$track - $title
-  classical: Classical/$composer/$album/$track - $title
-  comp: Compilations/$album/$track - $title
-```
-
-**Automatic album art:**
-```yaml
-plugins:
-  - scrub
-  - convert
-  - fetchart  # Download album art
-  - embedart  # Embed in files
-
-fetchart:
-  auto: yes
-
-embedart:
-  auto: yes
-```
-
-**Less interactive imports:**
-```yaml
-import:
-  quiet_fallback: skip  # Skip untagged items automatically
-  timid: no             # Don't ask for confirmation
-  incremental: yes      # Only import new files
-```
-
-### Sample Config
-
-```yaml
-directory: /Volumes/XTRAINERZ
-library: ~/.config/beets/shokz_music.db
-
-import:
-  move: yes
-  copy: no
-  write: yes
-  autotag: yes
-  incremental: yes
-
-paths:
-  default: $albumartist - $album/%if{$track,$track - }$title
-  singleton: $artist/$title
-  comp: Compilations/$album/%if{$track,$track - }$title
-
-plugins:
-  - scrub
-  - convert
-
-convert:
-  auto: no
-  copy_album_art: yes
-  max_bitrate: 128
-  format: aac
-  opts: '-b:a 96k'
-```
-
-## Usage Examples
-
-### Example 1: First-Time Setup
-
-You just got your XTRAINERZ and dragged some music onto it:
-
-**Before:**
-```
-/Volumes/XTRAINERZ/
-├── Blur - (2003) Think Tank {iMog}/
-│   ├── 01-ambulance.mp3 (320 kbps)
-│   └── 02-out of time.mp3 (320 kbps)
-└── [PMEDIA] The Beatles ⭐/
-    └── track01.m4a (256 kbps)
-```
-
-**Run:**
-```bash
-shokz-sync
-```
-
-**After:**
-```
-/Volumes/XTRAINERZ/
-├── Blur - Think Tank/
-│   ├── 01 - Ambulance.m4a (96 kbps)
-│   └── 02 - Out of Time.m4a (96 kbps)
-└── The Beatles - Abbey Road/
-    └── 01 - Come Together.m4a (96 kbps)
-```
-
-### Example 2: Adding New Albums
+To use a custom source directory:
 
 ```bash
-# Copy new folders to the device
-cp -r ~/Music/NewAlbum1 /Volumes/XTRAINERZ/
-cp -r ~/Music/NewAlbum2 /Volumes/XTRAINERZ/
-
-# Preview what will happen
-shokz-sync --dry-run
-
-# Run actual sync (only new files processed)
-shokz-sync
+./beets-encode.sh --source /path/to/music
 ```
-
-### Example 3: Higher Quality
-
-For audiobooks or classical music where you want better quality:
-
-```bash
-shokz-sync --bitrate 128k
-```
-
-### Example 4: Organization Only
-
-You already have optimized files and just want clean organization:
-
-```bash
-shokz-sync --no-convert
-```
-
-### Example 5: Custom Device Name
-
-Your device is named something else:
-
-```bash
-# Check what it's called
-ls /Volumes/
-
-# Sync with custom mountpoint
-shokz-sync --mountpoint /Volumes/SHOKZ
-```
-
-## Workflow
-
-### Initial Setup
-
-1. Copy all your existing music to `/Volumes/XTRAINERZ` however you like
-2. Run `shokz-sync` once to organize everything
-
-### Adding New Music
-
-1. Copy new album folders to `/Volumes/XTRAINERZ`
-2. Run `shokz-sync` again
-3. Beets will process only the new files (thanks to `incremental: yes`)
 
 ### Performance Notes
 
-**Typical sync times:**
-- 100 songs (no transcoding): 1-2 minutes
-- 100 songs (with transcoding): 5-10 minutes
-- 500 songs (mixed): 15-30 minutes
+**Typical processing times:**
+- 100 songs: 5-10 minutes
+- 500 songs: 20-30 minutes
+- Staging on local disk is much faster than working directly on USB
 
 **File size savings:**
 - 320 kbps MP3 → 96 kbps AAC: ~70% smaller
@@ -481,7 +313,7 @@ shokz-sync --mountpoint /Volumes/SHOKZ
 
 Close any Finder windows or apps (Music, iTunes, etc.) that are accessing the volume.
 
-### Device not found at `/Volumes/XTRAINERZ`
+### Device not found
 
 Verify the mount point:
 
@@ -492,36 +324,25 @@ ls /Volumes/
 If your device has a different name, use:
 
 ```bash
-shokz-sync --mountpoint /Volumes/YOUR_DEVICE_NAME
-```
-
-### Beets import hanging
-
-If beets asks questions interactively, respond to them. Or adjust the `import` section in your config to be more automatic:
-
-```yaml
-import:
-  quiet_fallback: skip
-  timid: no
+./sync-device.sh /Volumes/YOUR_DEVICE_NAME
 ```
 
 ### Permission denied when running fatsort
 
-`fatsort` requires `sudo` to access raw devices. The tool will prompt for your password when needed.
+`fatsort` requires `sudo` to access raw devices. The script will prompt for your password when needed.
 
-### Files not transcoding
+### No music files found in source
 
-Check the `convert` plugin in your beets config. The tool runs beets import without auto-conversion to give you more control. To enable auto-conversion:
-
-```yaml
-convert:
-  auto: yes
-```
-
-Or manually trigger conversion after organizing:
+Make sure you've copied music to the source directory:
 
 ```bash
-beet convert
+ls ./source/
+```
+
+If empty, copy your music there first:
+
+```bash
+cp -r ~/Music/* ./source/
 ```
 
 ## Notes on XTRAINERZ
@@ -533,136 +354,9 @@ beet convert
 - **No folder navigation**: The device plays all files sequentially
   - Organizing by album helps group tracks logically
 
-## Architecture
-
-### System Overview
-
-```
-┌─────────────────────────────┐
-│     shokz-sync CLI          │
-│        (cli.py)             │
-└────────────┬────────────────┘
-             │
-    ┌────────┼────────┐
-    ▼        ▼        ▼
-┌────────┐ ┌────┐ ┌─────────┐
-│Dependencies│ │Beets│ │Diskutil│
-│  Checker  │ │Config│ │ Utils  │
-└────────┘ └────┘ └─────────┘
-    │        │        │
-    └────────┼────────┘
-             ▼
-    ┌────────────────┐
-    │ External Tools │
-    │ • beets        │
-    │ • ffmpeg       │
-    │ • fatsort      │
-    └────────────────┘
-```
-
-### Workflow Steps
-
-1. **Dependency Check** - Verify all required tools are available
-2. **Device Detection** - Find and verify the mounted device
-3. **Config Management** - Create or use existing beets config
-4. **Beets Import** - Organize and transcode music files
-5. **Device Node Detection** - Get raw device path via diskutil
-6. **Unmount** - Safely unmount the volume
-7. **FAT Sorting** - Sort directory entries alphabetically
-8. **Remount** - Mount the device again
-
-### Project Structure
-
-```
-usb-audio-organizer/
-├── shokz_sync/
-│   ├── __init__.py
-│   ├── cli.py              # Main CLI interface & orchestration
-│   ├── beets_config.py     # Beets config management
-│   ├── diskutil_utils.py   # macOS diskutil wrappers
-│   ├── fatsort_utils.py    # fatsort wrappers
-│   └── dependencies.py     # Dependency checking
-├── tests/
-│   └── test_core_behavior.py  # Behavior-driven tests
-├── pyproject.toml          # Package configuration
-├── LICENSE                 # MIT License
-└── README.md               # This file
-```
-
-## Development
-
-### Testing Philosophy
-
-This project uses **behavior-driven testing** with 16 high-quality tests focusing on:
-- **Contracts** - What the user expects
-- **Real-world scenarios** - Actual use cases
-- **Integration points** - How components interact
-- **Not implementation details** - Tests survive refactoring
-
-### Running Tests
-
-```bash
-# Install with dev dependencies
-uv pip install -e ".[dev]"
-
-# Run all tests
-pytest
-
-# Run with verbose output
-pytest -v
-
-# Run with coverage
-pytest --cov=shokz_sync --cov-report=html
-
-# Open coverage report
-open htmlcov/index.html
-```
-
-### Test Organization
-
-Tests are organized by behavior, not by module:
-- `TestCLIContract` - User interacts with CLI
-- `TestConfigurationManagement` - Config lifecycle
-- `TestDeviceManagement` - Device detection
-- `TestDependencyChecking` - Tool availability
-- `TestFileScanning` - File discovery
-- `TestFatsortIntegration` - FAT32 sorting
-- `TestRealWorldScenarios` - Complex folder structures
-
-### Development Workflow
-
-```bash
-# Clone and setup
-git clone <repository-url>
-cd usb-audio-organizer
-brew install beets ffmpeg fatsort uv
-uv pip install -e ".[dev]"
-
-# Make changes
-# ... edit code ...
-
-# Run tests
-pytest
-
-# Install locally
-uv pip install -e .
-
-# Test with your device
-shokz-sync --dry-run
-```
-
 ## License
 
 MIT
-
-## Contributing
-
-Contributions welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality
-4. Submit a pull request
 
 ## Credits
 
@@ -673,7 +367,4 @@ Built with:
 
 ## Links
 
-- [Shokz XTRAINERZ](https://shokz.com/products/xtrainerz) - Product page
 - [beets documentation](https://beets.readthedocs.io/) - Configuration reference
-- [ffmpeg documentation](https://ffmpeg.org/documentation.html) - Encoding options
-

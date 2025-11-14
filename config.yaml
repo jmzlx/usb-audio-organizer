@@ -1,0 +1,39 @@
+# Beets configuration for Shokz XTRAINERZ
+# This is the static configuration file used by beets-encode.sh
+# Paths are relative to the project root (where the script is located)
+# The library database will be created in the project root as shokz_music.db
+
+directory: source
+library: shokz_music.db
+
+import:
+  move: false
+  copy: true
+  write: true
+  autotag: true
+  incremental: false
+  resume: False
+  quiet_fallback: asis
+
+ignore: .Spotlight-V100 .Trashes System Volume Information
+
+paths:
+  default: $albumartist - $album/%if{$track,$track - }$title
+  singleton: $artist/$title
+  comp: Compilations/$album/%if{$track,$track - }$title
+
+plugins:
+  - scrub
+  - convert
+
+scrub:
+  auto: true
+
+convert:
+  auto: true
+  copy_album_art: false
+  max_bitrate: 128
+  dest: encoded
+  format: aac
+  opts: -vn -c:a aac -b:a 96k -f mp4
+

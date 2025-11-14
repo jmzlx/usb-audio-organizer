@@ -1,7 +1,0 @@
-include README.md
-include LICENSE
-include SETUP_GUIDE.md
-include pyproject.toml
-recursive-include shokz_sync *.py
-recursive-include tests *.py
-
