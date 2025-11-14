@@ -28,12 +28,6 @@ Temporary Items
 *.swo
 *.bak
 
-# Plan file (Cursor)
-*.plan.md
-
-# Staging directory for music processing
-staging/
-
 # Beets database file (created in project root)
 shokz_music.db
 
